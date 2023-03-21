@@ -1,0 +1,88 @@
+#!/bin/bash
+#
+# This script creates a new container to launch the Ruby tools used to manage
+# the template defined in this repository.
+#
+# The $HOME and $GEM_HOME directories are stored in a volume.
+#
+# With no arguments, executes a bash shell.
+
+set -euo pipefail
+
+declare -a RUNCMD
+
+IMAGE=ruby:3-slim
+
+APPNAME=jitsi-server-cloudformation
+
+ROOTDIR=$(git rev-parse --show-toplevel)
+
+if [ "$(pwd)" = "$ROOTDIR" ]
+then
+  RELDIR=""
+else
+  RELDIR=$(pwd | xargs -0 realpath --relative-to="$ROOTDIR")
+fi
+
+# Detect GEM_HOME path in the image.
+find_GEM_HOME() {
+  docker image inspect                                \
+    --format $'{{range .Config.Env}}{{ . }}\n{{end}}' \
+    "$IMAGE"                                          \
+      | while IFS="=" read -r name value
+        do
+          if [ "$name" = GEM_HOME ]
+          then
+            printf "%s\n" "$value"
+          fi
+        done
+}
+
+GEM_HOME=$(find_GEM_HOME)
+
+if [ -z "$GEM_HOME" ]
+then
+  echo "Unable to find GEM_HOME variable in $IMAGE."
+  exit 1
+fi
+
+# Main docker-run arguments
+RUNCMD+=(
+  --rm
+  --name "$APPNAME-$(printf '%(%s)T')"
+  --tty
+  --interactive
+  --user "$UID"
+  --env HOME=/home/source
+  --volume "$ROOTDIR:/source"
+  --workdir "/source/$RELDIR"
+)
+
+# Initialize volumes, if they are missing.
+initvol() {
+  local volname="$APPNAME-$1"
+  local mountpath=$2
+
+  if [ -z "$(docker volume ls -q -f "name=$volname")" ]
+  then
+    printf 'New volume: '
+    docker volume create "$volname"
+    docker run --rm -v "$volname:/vol" \
+      "$IMAGE"                         \
+      chown "$UID:$UID" /vol
+  fi
+
+  RUNCMD+=(
+    --mount "type=volume,source=$volname,destination=$mountpath"
+  )
+}
+
+initvol home "/home/source"
+initvol gem "$GEM_HOME"
+
+if [ $# -eq 0 ]
+then
+  set -- bash
+fi
+
+exec docker run "${RUNCMD[@]}" "$IMAGE" "$@"
