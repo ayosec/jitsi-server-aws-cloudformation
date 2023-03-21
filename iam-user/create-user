@@ -1,0 +1,86 @@
+#!/bin/bash
+#
+# Create an IAM user to use with AWS CloudFormation.
+#
+# The user will be able to send requests only to a specific region. However, it
+# can create another user without region restrictions.
+
+set -euo pipefail
+
+while getopts "u:r:h" OPT
+do
+  case "$OPT" in
+    u)
+      IAM_USER_NAME="$OPTARG"
+      ;;
+
+    r)
+      REGION="$OPTARG"
+      ;;
+    *)
+      echo "Usage: $0 [-u iam-user] [-r region]"
+      exit 1
+  esac
+done
+
+: "${REGION:=us-west-2}"
+: "${IAM_USER_NAME:=cloudformation-jitsi-server-"$REGION"}"
+
+# Create the IAM user if it does not exist.
+
+if ! aws iam get-user --user-name "$IAM_USER_NAME" &> /dev/null
+then
+  printf 'Creating new user \e[1m%s\e[m ...\n' "$IAM_USER_NAME" 1>&2
+  aws iam create-user            \
+    --user-name "$IAM_USER_NAME" \
+    --tags                       \
+      "Key=Description,Value=CloudFormation user for jitsi-server" \
+      "Key=ManagedBy,Value=jitsi-server"
+fi
+
+# Attach permissions to it.
+
+printf 'Putting policy to user \e[1m%s\e[m ...\n' "$IAM_USER_NAME" 1>&2
+
+printf -v POLICY '{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "FullAccessInCloudFormation",
+      "Effect": "Allow",
+      "Action": [ "*" ],
+      "Resource": "*",
+      "Condition": {
+        "ForAnyValue:StringEquals": {
+          "aws:CalledVia": [ "cloudformation.amazonaws.com" ]
+        }
+      }
+    },
+    {
+      "Sid": "AccessToCloudFormation",
+      "Effect": "Allow",
+      "Action": [ "cloudformation:*" ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "%s"
+        }
+      }
+    }
+  ]
+}
+' "$REGION"
+
+aws iam put-user-policy                \
+  --user-name "$IAM_USER_NAME"         \
+  --policy-name "CloudFormationAccess" \
+  --policy-document "$POLICY"          \
+  > /dev/null
+
+# Add an access key to this user.
+
+NEWKEY=$(aws iam create-access-key --user-name "$IAM_USER_NAME")
+
+printf 'New key:\n\tAWS_ACCESS_KEY_ID=%q\n\tAWS_SECRET_ACCESS_KEY=%q\n' \
+  "$(jq -r .AccessKey.AccessKeyId <<<"$NEWKEY")"                        \
+  "$(jq -r .AccessKey.SecretAccessKey <<<"$NEWKEY")"
