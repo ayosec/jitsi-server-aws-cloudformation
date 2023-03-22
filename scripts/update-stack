@@ -1,0 +1,64 @@
+#!/usr/bin/env ruby
+
+require "json"
+require "net/http"
+require "optparse"
+require "securerandom"
+require "yaml"
+
+forced_params = {}
+stack_name = "jitsi-server-volatile"
+params_file = "params.yaml"
+template_path = File.expand_path("../../target/template.json", __FILE__)
+
+OptionParser.new do |parser|
+  parser.on "-p FILE", "Path of the params.yaml file" do |path|
+    params_file = path
+  end
+
+  parser.on "-n STACK", "Name of the stack to update" do |name|
+    stack_name = name
+  end
+
+  parser.on "-s VAR=VALUE", "Set a value for a parameter" do |arg|
+    p, v = arg.split("=", 2)
+    forced_params[p] = v
+  end
+end.parse!
+
+
+def machine_ip
+  Net::HTTP.get_response(URI("https://checkip.amazonaws.com")).body.strip + "/32"
+end
+
+if not File.exist?(params_file)
+  STDERR.puts "Missing #{params_file}. Use 'rake cf:params' to generate an example"
+  exit 1
+end
+
+params = YAML.load_file(params_file)
+
+forced_params.each_pair do |k, v|
+  params[k] = v
+end
+
+params["IPForSSH"] ||= machine_ip()
+
+puts "# Parameters"
+jj params
+
+params_json = params.map do |k, v|
+  { "ParameterKey": k, "ParameterValue": v }
+end
+
+
+print "IAM user: "
+system(*%w(aws sts get-caller-identity --query Arn --output text)) or exit 1
+
+exec(
+  "aws", "cloudformation", "update-stack",
+  "--stack-name", stack_name,
+  "--template-body", "file://#{template_path}",
+  "--parameters", params_json.to_json,
+  "--client-request-token", SecureRandom.hex(20),
+)
