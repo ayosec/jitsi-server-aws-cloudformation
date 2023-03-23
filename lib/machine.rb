@@ -63,32 +63,6 @@ def machine
     #]
   end
 
-  EC2_SecurityGroup "SecurityGroup" do
-    Condition "MachineIsEnabled"
-    GroupDescription "Access to Jitsi Server"
-    VpcId Ref("VPC")
-    SecurityGroupIngress [
-      {
-        IpProtocol: "tcp",
-        FromPort: 80,
-        ToPort: 80,
-        CidrIp: "0.0.0.0/0"
-      },
-      {
-        IpProtocol: "tcp",
-        FromPort: 443,
-        ToPort: 443,
-        CidrIp: "0.0.0.0/0"
-      },
-      {
-        IpProtocol: "tcp",
-        FromPort: 22,
-        ToPort: 22,
-        CidrIp: Ref("IPForSSH"),
-      },
-    ]
-  end
-
   Route53_RecordSet "DNSRecord" do
     Condition "MachineIsEnabled"
     HostedZoneId Ref("DNSZoneId")

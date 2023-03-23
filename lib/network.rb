@@ -41,6 +41,36 @@ def network
     GatewayId Ref("VPCInternetGateway")
   end
 
+  EC2_SecurityGroup "SecurityGroup" do
+    GroupDescription "Access to Jitsi Server"
+    VpcId Ref("VPC")
+
+    rules = [
+      {
+        IpProtocol: "tcp",
+        FromPort: 22,
+        ToPort: 22,
+        CidrIp: Ref("IPForSSH"),
+      }
+    ]
+
+    [ "tcp 80 443 4443", "udp 10000" ].each do |spec|
+      spec = spec.split
+      protocol = spec.shift
+      spec.each do |port|
+        port = Integer(port)
+        rules << {
+          IpProtocol: protocol,
+          FromPort: port,
+          ToPort: port,
+          CidrIp: "0.0.0.0/0"
+        }
+      end
+    end
+
+    SecurityGroupIngress rules
+  end
+
   Output "VPC" do
     Value Ref("VPC")
   end
