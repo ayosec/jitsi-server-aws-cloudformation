@@ -72,4 +72,9 @@ def machine
     TTL 300
     ResourceRecords [ FnGetAtt("MainInstance", "PublicIp") ]
   end
+
+  Output "PublicIp" do
+    Condition "MachineIsEnabled"
+    Value FnGetAtt("MainInstance", "PublicIp")
+  end
 end
