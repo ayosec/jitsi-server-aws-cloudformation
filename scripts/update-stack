@@ -7,6 +7,7 @@ require "securerandom"
 require "yaml"
 
 forced_params = {}
+cf_action = "update"
 stack_name = "jitsi-server-volatile"
 params_file = "params.yaml"
 template_path = File.expand_path("../../target/template.json", __FILE__)
@@ -23,6 +24,10 @@ OptionParser.new do |parser|
   parser.on "-s VAR=VALUE", "Set a value for a parameter" do |arg|
     p, v = arg.split("=", 2)
     forced_params[p] = v
+  end
+
+  parser.on "-c", "Create a new stack, instead of updating an existing one" do
+    cf_action = "create"
   end
 end.parse!
 
@@ -56,7 +61,7 @@ print "IAM user: "
 system(*%w(aws sts get-caller-identity --query Arn --output text)) or exit 1
 
 exec(
-  "aws", "cloudformation", "update-stack",
+  "aws", "cloudformation", "#{cf_action}-stack",
   "--stack-name", stack_name,
   "--template-body", "file://#{template_path}",
   "--parameters", params_json.to_json,
