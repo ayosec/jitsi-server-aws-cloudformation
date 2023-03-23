@@ -1,0 +1,8 @@
+#!/bin/bash
+
+: "${STACK_NAME:=jitsi-server-volatile}"
+
+aws cloudformation describe-stacks \
+  --stack-name "$STACK_NAME"       \
+  --query 'Stacks[].Outputs'       \
+  --output table
