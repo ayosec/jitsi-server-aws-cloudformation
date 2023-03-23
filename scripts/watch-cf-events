@@ -1,0 +1,10 @@
+#!/bin/bash
+
+: "${STACK_NAME:=jitsi-server-volatile}"
+
+exec watch -n 5 -x \
+  aws cloudformation describe-stack-events                                 \
+    --stack-name "$STACK_NAME"                                             \
+    --query 'StackEvents[].[Timestamp, ResourceStatus, LogicalResourceId]' \
+    --output table                                                         \
+    --max-items $((LINES - 5))
