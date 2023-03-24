@@ -1,6 +1,7 @@
 def network
   Parameter "VPCCidrBlock" do
     Type "String"
+    Description "CIDR for the VPC"
     Default "10.1.0.0/16"
   end
 
@@ -54,8 +55,8 @@ def network
       }
     ]
 
-    [ "tcp 80 443 4443", "udp 10000" ].each do |spec|
-      spec = spec.split
+    # Public ports.
+    [ %w(tcp 80 443 4443), %w(udp 10000) ].each do |spec|
       protocol = spec.shift
       spec.each do |port|
         port = Integer(port)

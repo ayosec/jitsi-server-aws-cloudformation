@@ -1,4 +1,4 @@
-LIBS = FileList["lib/*.rb"]
+LIBS = FileList["lib/*.rb", "lib/user-data/*"]
 SOURCE = "Template.rb"
 OUTPUT = "target/template.json"
 
